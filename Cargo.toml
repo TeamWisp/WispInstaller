@@ -1,0 +1,12 @@
+[package]
+name = "wisp_installer"
+version = "0.1.0"
+authors = ["Viktor Zoutman <viktorzoutman@vzout.com>"]
+edition = "2018"
+
+[dependencies]
+colored = "1.7"
+git2 = "0.8"
+fs_extra = "1.1.0"
+question = "0.2.2"
+ansi_term = "0.11"

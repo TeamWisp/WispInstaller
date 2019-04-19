@@ -82,17 +82,19 @@ fn download_deps()
     println!("Number of submodules: {}", submodules.len());
 
     // Prevent shitty error case since the libgit2 sdk sucks. (This bug is present in the C version of the API as well)
-    let mut file = match File::open(".git/config")
-    {
-        Ok(file) => file,
-        Err(e) => panic!("Failed to open .git/config file: {}", e),
-    };
     let mut contents = String::new();
-    match file.read_to_string(&mut contents)
     {
-        Ok(contents) => contents,
-        Err(e) => panic!("Failed to read from .git/config file: {}", e),
-    };
+        let mut file = match File::open(".git/config")
+        {
+            Ok(file) => file,
+            Err(e) => panic!("Failed to open .git/config file: {}", e),
+        };
+        match file.read_to_string(&mut contents)
+        {
+            Ok(contents) => contents,
+            Err(e) => panic!("Failed to read from .git/config file: {}", e),
+        };
+    }
 
     // Init and Update Submodules.
     for mut submodule in submodules {
@@ -112,17 +114,20 @@ fn download_deps()
 
             if !cfp.exists()
             {
-                println!("Detected already inialized submodule {}", submodule.name().unwrap());
-                println!("Making sure the deps/[submodule] dir is valid to prevent bug in libgit2.");
-
-                let mut file = match File::create(cfp)
+                if Path::new(&format!("gitdir: ../../.git/modules/{}", submodule.path().display())).exists()
                 {
-                    Ok(file) => { println!("Wrote .git file for {}", submodule.name().unwrap()); file },
-                    Err(e) => panic!("Failed to create .git file for submodule: {}", e),
-                };
+                    println!("Detected already inialized submodule {}", submodule.name().unwrap());
+                    println!("Making sure the deps/[submodule] dir is valid to prevent bug in libgit2.");
 
-                let newcontent = &format!("gitdir: ../../.git/modules/{}", submodule.path().display());
-                file.write_all(newcontent.as_bytes()).unwrap();
+                    let mut file = match File::create(cfp)
+                    {
+                        Ok(file) => { println!("Wrote .git file for {}", submodule.name().unwrap()); file },
+                        Err(e) => panic!("Failed to create .git file for submodule: {}", e),
+                    };
+
+                    let newcontent = &format!("gitdir: ../../.git/modules/{}", submodule.path().display());
+                    file.write_all(newcontent.as_bytes()).unwrap();
+                }
             }
         }
 

@@ -66,7 +66,7 @@ fn download_deps()
     print_header("Downloading Dependencies");
     
     // Open repository
-    let repo = match Repository::open("../Procedural-Ray-Tracing")
+    let repo = match Repository::open(".")
     {
         Ok(repo) => repo,
         Err(e) => panic!("failed to open git repo: {}", e),
@@ -82,7 +82,7 @@ fn download_deps()
     println!("Number of submodules: {}", submodules.len());
 
     // Prevent shitty error case since the libgit2 sdk sucks. (This bug is present in the C version of the API as well)
-    let mut file = match File::open("../Procedural-Ray-Tracing/.git/config")
+    let mut file = match File::open(".git/config")
     {
         Ok(file) => file,
         Err(e) => panic!("Failed to open .git/config file: {}", e),
@@ -203,9 +203,9 @@ fn copy_lfs()
         TransitProcessResult::ContinueOrAbort
     };
 
-    let dirs = vec!["../Procedural-Ray-Tracing/deps/Wisp-LFS/materials/", "../Procedural-Ray-Tracing/deps/Wisp-LFS/models"];
+    let dirs = vec!["deps/Wisp-LFS/materials/", "deps/Wisp-LFS/models"];
     
-    match copy_items_with_progress(&dirs, "../Procedural-Ray-Tracing/resources/", &options, handle)
+    match copy_items_with_progress(&dirs, "resources/", &options, handle)
     {
         Ok(bytes) => { println!(); println!("Copied {} MB", bytes / 1024 / 1024); },
         Err(e) => panic!("Failed to copy Wisp-LFS: {}", e),

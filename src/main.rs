@@ -2,6 +2,7 @@ extern crate colored;
 extern crate git2;
 extern crate fs_extra;
 extern crate question;
+extern crate rpassword;
 extern crate ansi_term;
 
 use colored::*;
@@ -47,7 +48,7 @@ fn print_info(text: &str)
     println!("{}", text.yellow());
 }
 
-fn checkout_progress(a: std::option::Option<&std::path::Path>, step: usize, total: usize)
+fn checkout_progress(_: std::option::Option<&std::path::Path>, step: usize, total: usize)
 {
     if total > 0
     {
@@ -152,6 +153,41 @@ fn download_deps()
     print_result("Finished Downloading Dependencies");
 }
 
+fn clone_repo(url: &str, path: &str, v_username: String, v_password: String)
+{
+    let mut remote_callbacks = git2::RemoteCallbacks::new();
+
+    remote_callbacks.credentials(move |url, username, allowed| {
+        let config = git2::Config::open_default()?;
+        let mut cred_helper = git2::CredentialHelper::new(url);
+        cred_helper.config(&config);
+        if allowed.contains(git2::CredentialType::SSH_KEY) {
+            let user = username.map(|s| s.to_string())
+                               .or_else(|| cred_helper.username.clone())
+                               .unwrap_or("git".to_string());
+            git2::Cred::ssh_key_from_agent(&user)
+        } else if allowed.contains(git2::CredentialType::DEFAULT) {
+            git2::Cred::default()
+        } else if allowed.contains(git2::CredentialType::USER_PASS_PLAINTEXT) {
+            print_info("(using plain text to authenticate)");
+            git2::Cred::userpass_plaintext(&v_username.as_str(), &v_password.as_str())
+        } else {
+            Err(git2::Error::from_str("no authentication available"))
+        }
+    });
+
+    let mut fetch_options = git2::FetchOptions::new();
+    fetch_options.remote_callbacks(remote_callbacks);
+
+    let mut rb = git2::build::RepoBuilder::new();
+    rb.fetch_options(fetch_options);
+
+    match rb.clone(url, Path::new(path)) {
+        Ok(_) => print_result(&format!("Finished cloning {} into {}", url, path)),
+        Err(e) => print_error(&format!("Failed to clone {}. Is Your Git Account Part Of The NVIDIAGameWorks UELA Group?. Error: {}", url, e)),
+    };
+}
+
 fn copy_lfs()
 {
     print_header("Copying LFS-Wisp to the resources directory");
@@ -207,6 +243,16 @@ fn generate_vs_build_files(build_dir: &str, generator: &str, arch: &str, enable_
     else
     {
         println!("Build directory already exists");
+
+        let cache_path = Path::new(build_dir).join(Path::new("CMakeCache.txt")); 
+        if cache_path.exists()
+        {
+            match fs::remove_file(cache_path)
+            {
+                Ok(()) => println!("Removed CMakeCache.txt"),
+                Err(e) => panic!("Failed to remove CMakeCache.txt: {}", e),
+            };
+        }
     }
 
     let generator_arg = &format!("-G{}", generator);
@@ -301,9 +347,37 @@ fn main()
         .show_defaults()
         .confirm());
 
+    let install_gameworks = answer_to_bool(Question::new("Install NVIDIA Gameworks SDK's?")
+        .default(Answer::NO)
+        .show_defaults()
+        .confirm());
+
     if clean_build
     {
         clean_cmake(build_dir);
+    }
+
+    if install_gameworks
+    {
+        let mut username = String::new();
+        print_header("Downloading the HBAO+ SDK and the AnselSDK from NVIDIA");
+        print_info("Please note this will fail if your git account is not part of the 'GameWorks_EULA_Access' team");
+
+        print_info("The Gameworks SDK's are part of a private repository. You'll need to login to download them. (Don't worry, passwords are not saved)");
+        print!("Username: ");
+        let _ = stdout().flush();
+        stdin().read_line(&mut username).expect("Did not enter a correct string");
+        if let Some('\n')=username.chars().next_back() {
+            username.pop();
+        }
+        if let Some('\r')=username.chars().next_back() {
+            username.pop();
+        }
+
+        let password = rpassword::read_password_from_tty(Some("Password: ")).unwrap();
+
+        clone_repo("https://github.com/NVIDIAGameWorks/HBAOPlus.git", "deps/hbao+", username.clone(), password.clone());
+        clone_repo("https://github.com/NVIDIAGameWorks/AnselSDK.git", "deps/ansel", username, password);
     }
 
     download_deps();
